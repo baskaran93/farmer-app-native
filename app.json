@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "name": "Farmer App Native",
+    "slug": "farmer-app-native",
+    "version": "1.0.0",
+    "platforms": ["ios", "android", "web"],
+    "orientation": "portrait"
+  }
+}

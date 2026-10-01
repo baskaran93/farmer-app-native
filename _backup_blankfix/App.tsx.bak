@@ -1,0 +1,94 @@
+import React, { useEffect } from 'react'
+import { NavigationContainer } from '@react-navigation/native'
+import { createNativeStackNavigator } from '@react-navigation/native-stack'
+import { SafeAreaView, StatusBar } from 'react-native'
+import Login from './src/screens/Login'
+import Dashboard from './src/screens/Dashboard'
+import Sales from './src/screens/Sales'
+import AddSale from './src/screens/AddSale'
+import SaleDetail from './src/screens/SaleDetail'
+import Advances from './src/screens/Advances'
+import Settlement from './src/screens/Settlement'
+import Reports from './src/screens/Reports'
+import { initStorage } from './src/services/storage'
+import { AuthProvider, useAuth } from './src/context/AuthContext'
+
+const Stack = createNativeStackNavigator()
+
+function AuthStack(){
+  return (
+    <Stack.Navigator screenOptions={{headerShown:false}}>
+      <Stack.Screen name="Login" component={Login} />
+    </Stack.Navigator>
+  )
+}
+
+function MainStack(){
+  return (
+    <Stack.Navigator screenOptions={{
+      headerShown: true,
+      headerBackTitle: 'Back',
+      headerTintColor: '#3b82f6',
+      headerStyle: { backgroundColor: '#fff' },
+      headerTitleStyle: { fontWeight: '600', color: '#1f2937' }
+    }}>
+      <Stack.Screen 
+        name="Dashboard" 
+        component={Dashboard}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+        name="Sales" 
+        component={Sales}
+        options={{ title: 'All Sales' }}
+      />
+      <Stack.Screen 
+        name="AddSale" 
+        component={AddSale}
+        options={{ title: 'Add Sale' }}
+      />
+      <Stack.Screen 
+        name="SaleDetail" 
+        component={SaleDetail}
+        options={{ title: 'Sale Details' }}
+      />
+      <Stack.Screen 
+        name="Advances" 
+        component={Advances}
+        options={{ title: 'Advances' }}
+      />
+      <Stack.Screen 
+        name="Settlement" 
+        component={Settlement}
+        options={{ title: 'Settlement' }}
+      />
+      <Stack.Screen 
+        name="Reports" 
+        component={Reports}
+        options={{ title: 'Reports' }}
+      />
+    </Stack.Navigator>
+  )
+}
+
+function AppRoutes(){
+  const { user } = useAuth()
+  return (
+    <SafeAreaView style={{flex:1, height: '100%'}}>
+      {user ? <MainStack/> : <AuthStack/>}
+    </SafeAreaView>
+  )
+}
+
+export default function App(){
+  useEffect(()=>{ initStorage() }, [])
+
+  return (
+    <AuthProvider>
+      <NavigationContainer>
+        <StatusBar barStyle="dark-content" />
+        <AppRoutes />
+      </NavigationContainer>
+    </AuthProvider>
+  )
+}

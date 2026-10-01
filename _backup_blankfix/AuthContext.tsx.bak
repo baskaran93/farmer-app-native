@@ -1,0 +1,174 @@
+import React, { createContext, useContext, useEffect, useState } from 'react'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as api from '../services/api'
+import { syncAll } from '../services/sync'
+
+export type User = { id?: number; username: string } | null
+
+export interface Sale {
+  id: string
+  date: string
+  rate: number
+  firstKg: number
+  secondKg: number
+  firstAmount: number
+  secondRate: number
+  secondAmount: number
+  totalAmount: number
+}
+
+export interface Advance {
+  id: string
+  date: string
+  amount: number
+  description: string
+}
+
+export interface SalesData {
+  sales: Sale[]
+  advances: Advance[]
+}
+
+type AuthContextType = {
+  user: User
+  login: (username: string, password?: string) => Promise<void>
+  logout: () => Promise<void>
+  salesData: SalesData
+  addSale: (sale: Omit<Sale, 'id'>) => Promise<void>
+  addAdvance: (advance: Omit<Advance, 'id'>) => Promise<void>
+  updateSale: (id: string, sale: Omit<Sale, 'id'>) => Promise<void>
+  deleteSale: (id: string) => Promise<void>
+  deleteAdvance: (id: string) => Promise<void>
+  refreshData: () => Promise<void>
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+export function AuthProvider({ children }: { children: React.ReactNode }){
+  const [user, setUser] = useState<User>(null)
+  const [salesData, setSalesData] = useState<SalesData>({ sales: [], advances: [] })
+
+  useEffect(()=>{ ;(async ()=>{
+    const raw = await AsyncStorage.getItem('user')
+    if(raw) setUser(JSON.parse(raw))
+    await refreshData()
+  })() }, [])
+
+  useEffect(()=>{ ;(async ()=>{
+    if(user){
+      try{ await syncAll() }catch{}
+    }
+  })() }, [user])
+
+  async function refreshData(){
+    try {
+      // Try to fetch from API (SQL Server)
+      const sales = await api.getSales()
+      const advances = await api.getAdvances()
+      setSalesData({ sales, advances })
+      
+      // Cache to local storage as backup
+      await AsyncStorage.setItem('sales', JSON.stringify(sales))
+      await AsyncStorage.setItem('advances', JSON.stringify(advances))
+    } catch (error) {
+      console.warn('API call failed, using local storage:', error)
+      // Fallback to local storage
+      const sales = JSON.parse(await AsyncStorage.getItem('sales') || '[]') as Sale[]
+      const advances = JSON.parse(await AsyncStorage.getItem('advances') || '[]') as Advance[]
+      setSalesData({ sales, advances })
+    }
+  }
+
+  async function login(username: string, password?: string){
+    try{
+      const res = await api.login(username, password || '')
+      const u = res.user || { username }
+      await AsyncStorage.setItem('user', JSON.stringify(u))
+      setUser(u)
+      try{ await syncAll() }catch{}
+    }catch(e){
+      const u = { username }
+      await AsyncStorage.setItem('user', JSON.stringify(u))
+      setUser(u)
+      try{ await syncAll() }catch{}
+    }
+  }
+
+  async function logout(){
+    await AsyncStorage.removeItem('user')
+    setUser(null)
+  }
+
+  async function addSale(sale: Omit<Sale, 'id'>){
+    const newSale = { ...sale, id: String(Date.now()) }
+    try {
+      // Try API first
+      await api.addSale(newSale)
+    } catch (error) {
+      console.warn('API call failed, saving to local storage:', error)
+    }
+    // Update local state
+    const updated = [...salesData.sales, newSale]
+    await AsyncStorage.setItem('sales', JSON.stringify(updated))
+    setSalesData({ ...salesData, sales: updated })
+  }
+
+  async function addAdvance(advance: Omit<Advance, 'id'>){
+    const newAdvance = { ...advance, id: String(Date.now()) }
+    try {
+      // Try API first
+      await api.addAdvance(newAdvance)
+    } catch (error) {
+      console.warn('API call failed, saving to local storage:', error)
+    }
+    // Update local state
+    const updated = [...salesData.advances, newAdvance]
+    await AsyncStorage.setItem('advances', JSON.stringify(updated))
+    setSalesData({ ...salesData, advances: updated })
+  }
+
+  async function updateSale(id: string, sale: Omit<Sale, 'id'>){
+    try {
+      await api.updateSale(id, sale)
+    } catch (error) {
+      console.warn('API call failed:', error)
+    }
+    const updated = salesData.sales.map(s => s.id === id ? { ...sale, id } : s)
+    await AsyncStorage.setItem('sales', JSON.stringify(updated))
+    setSalesData({ ...salesData, sales: updated })
+  }
+
+  async function deleteSale(id: string){
+    try {
+      await api.deleteSale(id)
+    } catch (error) {
+      console.warn('API call failed:', error)
+    }
+    const updated = salesData.sales.filter(s => s.id !== id)
+    await AsyncStorage.setItem('sales', JSON.stringify(updated))
+    setSalesData({ ...salesData, sales: updated })
+  }
+
+  async function deleteAdvance(id: string){
+    try {
+      await api.deleteAdvance(id)
+    } catch (error) {
+      console.warn('API call failed:', error)
+    }
+    const updated = salesData.advances.filter(a => a.id !== id)
+    await AsyncStorage.setItem('advances', JSON.stringify(updated))
+    setSalesData({ ...salesData, advances: updated })
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, login, logout, salesData, addSale, addAdvance, updateSale, deleteSale, deleteAdvance, refreshData }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth(){
+  const ctx = useContext(AuthContext)
+  if(!ctx) throw new Error('useAuth must be used within AuthProvider')
+  return ctx
+}
