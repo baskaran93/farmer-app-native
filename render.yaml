@@ -1,0 +1,18 @@
+# Render Blueprint - Farmer App Backend
+# https://dashboard.render.com/project/prj-d9o27idaeets73ctf4cg
+services:
+  - type: web
+    name: farmer-app-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20.11.1"
+      # Set this in the Render Dashboard (Environment tab).
+      # Fallback exists in backend/.env (Supabase connection string).
+      - key: DATABASE_URL
+        sync: false
